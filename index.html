@@ -1,0 +1,1407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulation Engineering Toolkit 14 — An Accelerator Model in SimPy, End to End</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;500;600;700&family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400;1,700&family=Geist+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400;1,700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #1c1815;
+            --bg-card: #231e1a;
+            --bg-code: #2b2520;
+            --text-primary: #efe8dc;
+            --text-secondary: #a2978b;
+            --accent: #aabd59;
+            --accent-dim: #aabd5944;
+            --accent-glow: #aabd5933;
+            --border: #3a322b;
+            --font-display: 'Bricolage Grotesque', sans-serif;
+            --font-mono: 'Geist Mono', 'Geist Mono', monospace;
+            --font-body: 'Instrument Sans', sans-serif;
+            --max-width: 900px;
+        }
+
+        *, *::before, *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-family: var(--font-body);
+            font-size: 17px;
+            line-height: 1.7;
+            overflow-x: hidden;
+        }
+
+        /* ── Header ── */
+        .hero {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 2rem 1.5rem;
+            text-align: center;
+            position: relative;
+        }
+
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, var(--accent-glow) 0%, transparent 70%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .hero > * {
+            position: relative;
+            z-index: 1;
+        }
+
+        .series-label {
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            color: var(--accent);
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            margin-bottom: 1rem;
+        }
+
+        .hero h1 {
+            font-family: var(--font-display);
+            font-size: clamp(2rem, 5vw, 3.2rem);
+            font-weight: 700;
+            color: var(--text-primary);
+            line-height: 1.2;
+            margin-bottom: 1rem;
+        }
+
+        .hero h1 .accent {
+            color: var(--accent);
+        }
+
+        .hero .subtitle {
+            font-size: 1.1rem;
+            color: var(--text-secondary);
+            max-width: 600px;
+            margin-bottom: 2rem;
+        }
+
+        /* ── Tag Pills ── */
+        .tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            justify-content: center;
+            margin-bottom: 2.5rem;
+        }
+
+        .tag {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            padding: 0.25rem 0.75rem;
+            border-radius: 999px;
+            border: 1px solid var(--accent);
+            color: var(--accent);
+            background: var(--accent-dim);
+            white-space: nowrap;
+        }
+
+        /* ── Pipeline Flow Bar ── */
+        .pipeline {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: center;
+            gap: 0.25rem;
+            margin-bottom: 1rem;
+            max-width: var(--max-width);
+        }
+
+        .pipeline-step {
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            padding: 0.3rem 0.7rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            color: var(--text-secondary);
+            white-space: nowrap;
+        }
+
+        .pipeline-arrow {
+            color: var(--accent);
+            font-size: 0.9rem;
+            font-weight: 700;
+        }
+
+        /* ── Slides ── */
+        .slide {
+            min-height: 100vh;
+            max-width: var(--max-width);
+            margin: 0 auto;
+            padding: 4rem 1.5rem;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .slide-number {
+            font-family: var(--font-display);
+            font-size: 5rem;
+            font-weight: 700;
+            color: var(--accent-dim);
+            position: absolute;
+            top: 2rem;
+            right: 1.5rem;
+            line-height: 1;
+            user-select: none;
+        }
+
+        .slide h2 {
+            font-family: var(--font-display);
+            font-size: 1.9rem;
+            font-weight: 700;
+            color: var(--accent);
+            margin-bottom: 1.5rem;
+            line-height: 1.25;
+        }
+
+        .slide h3 {
+            font-family: var(--font-display);
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-top: 1.5rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .slide p {
+            margin-bottom: 1rem;
+            color: var(--text-secondary);
+        }
+
+        .slide p strong {
+            color: var(--text-primary);
+        }
+
+        .slide ul, .slide ol {
+            margin-bottom: 1rem;
+            padding-left: 1.5rem;
+            color: var(--text-secondary);
+        }
+
+        .slide li {
+            margin-bottom: 0.4rem;
+        }
+
+        .slide li strong {
+            color: var(--text-primary);
+        }
+
+        /* ── Code Blocks ── */
+        .code-block {
+            background: var(--bg-code);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            margin: 1.25rem 0;
+            overflow: hidden;
+        }
+
+        .code-header {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--accent);
+            background: rgba(170,189,89,0.08);
+            padding: 0.4rem 1rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .code-block pre {
+            margin: 0;
+            padding: 1rem;
+            overflow-x: auto;
+        }
+
+        .code-block code {
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            line-height: 1.6;
+            color: #dad1c5;
+        }
+
+        /* Syntax highlighting (manual) */
+        .kw { color: #de805a; }
+        .fn { color: #d7bbdf; }
+        .str { color: #bcdbd4; }
+        .cm { color: #a2978b; font-style: italic; }
+        .num { color: #97cdc6; }
+        .type { color: #e3b174; }
+        .dir { color: #de805a; }
+        .mac { color: #e3b174; }
+
+        /* ── Tables ── */
+        .table-wrap {
+            overflow-x: auto;
+            margin: 1.25rem 0;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+
+        th {
+            background: var(--bg-code);
+            color: var(--accent);
+            font-weight: 600;
+            text-align: left;
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid var(--border);
+            font-family: var(--font-display);
+            white-space: nowrap;
+        }
+
+        td {
+            padding: 0.6rem 1rem;
+            border-bottom: 1px solid var(--border);
+            color: var(--text-secondary);
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        tr:nth-child(even) td {
+            background: rgba(35,30,26,0.5);
+        }
+
+        /* ── Diagrams ── */
+        .diagram-flow {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            margin: 1.5rem 0;
+            padding: 1.5rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+        }
+
+        .diagram-box {
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            padding: 0.5rem 1rem;
+            background: var(--bg-code);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text-primary);
+            text-align: center;
+            white-space: nowrap;
+        }
+
+        .diagram-box.accent {
+            border-color: var(--accent);
+            color: var(--accent);
+            background: rgba(170,189,89,0.08);
+        }
+
+        .diagram-box.dim {
+            color: var(--text-secondary);
+            border-color: var(--border);
+        }
+
+        .diagram-arrow {
+            color: var(--accent);
+            font-size: 1.3rem;
+            font-weight: 700;
+        }
+
+        /* Vertical flow diagrams */
+        .diagram-vertical {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.3rem;
+            margin: 1.5rem 0;
+            padding: 1.5rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+        }
+
+        .diagram-vertical .diagram-arrow {
+            font-size: 1.1rem;
+        }
+
+        /* Nested hierarchy diagram */
+        .hierarchy {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            margin: 1.5rem 0;
+            padding: 1.5rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+        }
+
+        .hierarchy-level {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .hierarchy-label {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            min-width: 80px;
+            text-align: right;
+        }
+
+        .hierarchy-items {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.35rem;
+        }
+
+        .hierarchy-item {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            padding: 0.3rem 0.6rem;
+            border-radius: 4px;
+            background: var(--bg-code);
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+        }
+
+        .hierarchy-item.accent {
+            border-color: var(--accent);
+            color: var(--accent);
+            background: rgba(170,189,89,0.08);
+        }
+
+        /* Grid diagram */
+        .diagram-grid {
+            display: grid;
+            gap: 0.75rem;
+            margin: 1.5rem 0;
+            padding: 1.5rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+        }
+
+        .diagram-grid.cols-2 {
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .diagram-grid.cols-3 {
+            grid-template-columns: 1fr 1fr 1fr;
+        }
+
+        .diagram-panel {
+            padding: 1rem;
+            background: var(--bg-code);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+        }
+
+        .diagram-panel.accent-border {
+            border-left: 3px solid var(--accent);
+        }
+
+        .diagram-panel h4 {
+            font-family: var(--font-display);
+            font-size: 1rem;
+            color: var(--accent);
+            margin-bottom: 0.5rem;
+        }
+
+        .diagram-panel p, .diagram-panel ul {
+            font-size: 0.85rem;
+        }
+
+        /* ── Callout Boxes ── */
+        .callout {
+            background: var(--bg-card);
+            border-left: 3px solid var(--accent);
+            border-radius: 0 8px 8px 0;
+            padding: 1rem 1.25rem;
+            margin: 1.25rem 0;
+        }
+
+        .callout p {
+            margin-bottom: 0;
+        }
+
+        .callout .callout-label {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--accent);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 0.3rem;
+        }
+
+        /* ── Tier Visual ── */
+        .tier-visual {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            margin: 1.5rem 0;
+            padding: 1.5rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+        }
+
+        .tier-bar {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .tier-label {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            min-width: 90px;
+            text-align: right;
+        }
+
+        .tier-fill {
+            height: 32px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            padding: 0 0.75rem;
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            white-space: nowrap;
+            transition: width 0.6s ease;
+        }
+
+        .tier-cost {
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+            min-width: 70px;
+        }
+
+        /* ── Contents list ── */
+        .contents-list {
+            list-style: none;
+            padding-left: 0;
+            counter-reset: contents;
+        }
+
+        .contents-list li {
+            counter-increment: contents;
+            padding: 0.6rem 0;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .contents-list li:last-child {
+            border-bottom: none;
+        }
+
+        .contents-list li::before {
+            content: counter(contents, decimal-leading-zero);
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            color: var(--accent);
+            min-width: 2rem;
+        }
+
+        .contents-list a {
+            color: var(--text-primary);
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+
+        .contents-list a:hover {
+            color: var(--accent);
+        }
+
+        /* ── Footer ── */
+        .footer {
+            text-align: center;
+            padding: 3rem 1.5rem;
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            border-top: 1px solid var(--border);
+            max-width: var(--max-width);
+            margin: 0 auto;
+        }
+
+        .footer a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+
+        .footer a:hover {
+            text-decoration: underline;
+        }
+
+        /* ── Responsive ── */
+        @media (max-width: 640px) {
+            .slide {
+                padding: 3rem 1rem;
+                min-height: auto;
+            }
+
+            .slide-number {
+                font-size: 3rem;
+                top: 1.5rem;
+                right: 1rem;
+            }
+
+            .slide h2 {
+                font-size: 1.5rem;
+            }
+
+            .diagram-grid.cols-2,
+            .diagram-grid.cols-3 {
+                grid-template-columns: 1fr;
+            }
+
+            .pipeline {
+                gap: 0.15rem;
+            }
+
+            .pipeline-step {
+                font-size: 0.6rem;
+                padding: 0.2rem 0.4rem;
+            }
+
+            .hero h1 {
+                font-size: 1.8rem;
+            }
+
+            table {
+                font-size: 0.78rem;
+            }
+
+            .tier-label {
+                min-width: 60px;
+                font-size: 0.65rem;
+            }
+
+            .tier-fill {
+                font-size: 0.6rem;
+                height: 26px;
+            }
+        }
+
+        /* ── Interactive controls (added for Local LLM series) ── */
+        .control-panel {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.25rem;
+            margin: 1.25rem 0;
+        }
+        .control-row {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 0.75rem;
+        }
+        .control-row label {
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            min-width: 180px;
+        }
+        .control-row input[type="range"] {
+            flex: 1;
+            min-width: 160px;
+            accent-color: var(--accent);
+        }
+        .control-row input[type="number"],
+        .control-row select {
+            background: var(--bg-code);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            border-radius: 4px;
+            padding: 0.3rem 0.5rem;
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+        }
+        .control-row .val {
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            color: var(--accent);
+            min-width: 80px;
+            text-align: right;
+        }
+        .btn {
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            padding: 0.4rem 0.9rem;
+            background: var(--accent-dim);
+            color: var(--accent);
+            border: 1px solid var(--accent);
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.15s ease;
+        }
+        .btn:hover { background: rgba(170,189,89,0.2); }
+        .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .btn.secondary {
+            background: var(--bg-code);
+            color: var(--text-secondary);
+            border-color: var(--border);
+        }
+        .result-box {
+            background: var(--bg-code);
+            border: 1px solid var(--border);
+            border-left: 3px solid var(--accent);
+            border-radius: 4px;
+            padding: 0.75rem 1rem;
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            color: var(--text-primary);
+            margin-top: 0.75rem;
+        }
+        .result-box .line-label { color: var(--text-secondary); }
+        .result-box .line-val   { color: var(--accent); font-weight: 600; }
+        .metric-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 0.5rem;
+            margin-top: 0.75rem;
+        }
+        .metric {
+            background: var(--bg-code);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 0.6rem 0.8rem;
+            text-align: center;
+        }
+        .metric .metric-label {
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+        .metric .metric-value {
+            font-family: var(--font-display);
+            font-size: 1.25rem;
+            color: var(--accent);
+            font-weight: 600;
+            margin-top: 0.2rem;
+        }
+
+        /* Canvas / SVG containers */
+        .canvas-wrap {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+            margin: 1.25rem 0;
+            overflow-x: auto;
+        }
+        .canvas-wrap canvas,
+        .canvas-wrap svg {
+            display: block;
+            margin: 0 auto;
+            max-width: 100%;
+        }
+
+        /* Small inline badge */
+        .badge {
+            display: inline-block;
+            font-family: var(--font-mono);
+            font-size: 0.65rem;
+            padding: 0.1rem 0.45rem;
+            border-radius: 999px;
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            vertical-align: middle;
+            margin-left: 0.3rem;
+        }
+        .badge.ok    { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+        .badge.warn  { border-color: #e3b174; color: #e3b174; background: rgba(227,177,116,0.08); }
+        .badge.bad   { border-color: #de805a; color: #de805a; background: rgba(222,128,90,0.08); }
+
+
+        /* ── LLM Inference Simulators additions ── */
+        .canvas-wrap canvas { image-rendering: auto; display: block; width: 100%; height: auto; }
+        .canvas-wrap svg { max-width: 100%; height: auto; }
+        .ladder { display: grid; gap: 0.4rem; margin: 1.25rem 0; }
+        .ladder-row {
+            display: grid; grid-template-columns: 11rem 1fr 7.5rem; gap: 0.75rem; align-items: center;
+            background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px;
+            padding: 0.55rem 0.85rem; font-size: 0.88rem;
+        }
+        .ladder-row .rung { font-family: var(--font-display); font-weight: 600; color: var(--accent); }
+        .ladder-row .speed { font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-secondary); text-align: right; }
+        .res-list { list-style: none; padding: 0; margin: 0.75rem 0; }
+        .res-list li { padding: 0.6rem 0; border-bottom: 1px solid var(--border); font-size: 0.92rem; }
+        .res-list li:last-child { border-bottom: none; }
+        .res-list .what { color: var(--text-secondary); display: block; font-size: 0.86rem; margin-top: 0.15rem; }
+        .res-list a { color: var(--accent); text-decoration: none; }
+        .res-list a:hover { text-decoration: underline; }
+        .qa { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; margin: 0.6rem 0; padding: 0.2rem 1rem; }
+        .qa summary { cursor: pointer; padding: 0.6rem 0; font-weight: 600; }
+        .qa p, .qa ul { margin-bottom: 0.75rem; font-size: 0.92rem; }
+        .sim-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 0.4rem 1.25rem; }
+        .chart-pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem; }
+        .chart-title { font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.3rem; }
+        .slide a { color: var(--accent); }
+        @media (max-width: 640px) {
+            .ladder-row { grid-template-columns: 1fr; gap: 0.2rem; }
+            .ladder-row .speed { text-align: left; }
+        }
+        .concepts { background: var(--bg-card); border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: 6px; padding: 0.75rem 1rem; margin-top: 1.25rem; font-size: 0.88rem; }
+        .concepts p { margin: 0 0 0.4rem; color: var(--text-secondary); }
+        .concepts .chips { display: flex; flex-wrap: wrap; gap: 0.35rem 0.5rem; }
+        .concepts .chips a { border: 1px solid var(--border); border-radius: 999px; padding: 0.1rem 0.6rem; text-decoration: none; font-size: 0.82rem; }
+        .concepts .chips a:hover { border-color: var(--accent); }
+        /* ── Simulation Engineering Toolkit additions ── */
+        .code-header a.src-link { color: var(--text-secondary); text-decoration: none; float: right; }
+        .code-header a.src-link:hover { color: var(--accent); text-decoration: underline; }
+        p.src { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-secondary); margin: -0.75rem 0 1rem; }
+        p.src a { color: var(--text-secondary); }
+        .control-panel select, .control-panel input[type=number] { background: var(--bg-code); color: var(--text-primary); border: 1px solid var(--border); border-radius: 4px; padding: 0.2rem 0.4rem; font-family: var(--font-mono); font-size: 0.8rem; }
+        .mut-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 0.4rem 1rem; font-size: 0.85rem; }
+        .mut-grid label { display: flex; gap: 0.5rem; align-items: baseline; cursor: pointer; }
+        .mut-list { font-family: var(--font-mono); font-size: 0.78rem; line-height: 1.7; }
+        .mut-list .killed { color: var(--accent); }
+        .mut-list .survived { color: #de805a; }
+        .hero { overflow: hidden; }   /* the 600px glow must not widen the page on phones */
+        .chart-pair > *, .diagram-grid > *, .sim-grid > * { min-width: 0; }   /* let wide code scroll inside its column */
+        .slide p code, .slide li code, .slide td code { overflow-wrap: anywhere; }
+        .control-panel select { max-width: 100%; }
+        /* ── Deck 12: tool cards (five fields each; id="card-<key>" is the glossary's link target) ── */
+        .tool-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 0.9rem; margin: 1rem 0; }
+        .tool-card { background: var(--bg-card); border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: 6px; padding: 0.8rem 1rem; min-width: 0; scroll-margin-top: 1rem; }
+        .tool-card:target { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-dim); }
+        .tool-card h3 { font-family: var(--font-display); font-size: 1.02rem; color: var(--accent); margin: 0 0 0.45rem; }
+        .tool-card .kind { font-family: var(--font-mono); font-size: 0.68rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-left: 0.4rem; }
+        .tool-card dl { margin: 0; font-size: 0.85rem; }
+        .tool-card dt { font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.04em; margin-top: 0.45rem; }
+        .tool-card dd { margin: 0.1rem 0 0; line-height: 1.5; }
+        .tool-card code, .tool-card a { overflow-wrap: anywhere; }
+        .tool-card .doc { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-secondary); margin-top: 0.5rem; }
+        .chooser-q { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.5rem 0; }
+        .chooser-q .btn { font-size: 0.8rem; }
+        .chooser-q .btn.on { background: var(--accent); color: var(--bg-primary); }
+        @media (max-width: 640px) { .tool-cards { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+
+<header class="hero">
+    <div class="series-label">Simulation Engineering Toolkit &mdash; Presentation 14</div>
+    <h1>An Accelerator Model in <span class="accent">SimPy</span>, End to End</h1>
+    <p class="subtitle">A real graph from torch.export or ONNX run through an event-driven model of a tiled accelerator: off-chip memory, interconnect, DMA engines, an on-chip buffer with back-pressure, a compute array and a vector unit. Lowering to tiles, a cycle-approximate timing model, the roofline, Little's law and stall attribution, a timeline and hot-spot report, a cycle-stepped twin, how gem5 and SST are structured, a bit-identical C++ fast path with pybind11, ONNX Runtime execution providers, and an FHE-style NTT workload.</p>
+
+    <div class="tags">
+        <span class="tag">SimPy</span>
+        <span class="tag">Back-pressure</span>
+        <span class="tag">Stall attribution</span>
+        <span class="tag">Cycle-based twin</span>
+        <span class="tag">gem5 and SST</span>
+        <span class="tag">pybind11</span>
+        <span class="tag">Execution providers</span>
+        <span class="tag">NTT</span>
+    </div>
+
+    <div class="pipeline">
+        <span class="pipeline-step">Graph</span>
+        <span class="pipeline-arrow">&rarr;</span>
+        <span class="pipeline-step">Tiles</span>
+        <span class="pipeline-arrow">&rarr;</span>
+        <span class="pipeline-step">Simulate</span>
+        <span class="pipeline-arrow">&rarr;</span>
+        <span class="pipeline-step">Stalls</span>
+        <span class="pipeline-arrow">&rarr;</span>
+        <span class="pipeline-step">Hot-spot</span>
+        <span class="pipeline-arrow">&rarr;</span>
+        <span class="pipeline-step">Port</span>
+    </div>
+</header>
+
+<section class="slide" id="slide-00">
+    <div class="slide-number">00</div>
+    <h2>Topics We'll Cover</h2>
+    <ul class="contents-list">
+        <li><a href="#slide-01">What the Model Must Answer</a></li>
+        <li><a href="#slide-02">SimPy Primitives, Mapped to Hardware</a></li>
+        <li><a href="#slide-03">Back-Pressure in the Smallest Model</a></li>
+        <li><a href="#slide-04">From a Graph to Tiles</a></li>
+        <li><a href="#slide-05">The Timing Model: Cycle-Approximate Components</a></li>
+        <li><a href="#slide-06">Methods: Roofline, Little's Law, Utilisation and Bottlenecks</a></li>
+        <li><a href="#slide-07">Finding the Stalls</a></li>
+        <li><a href="#slide-08">Interactive: Where the Time Goes</a></li>
+        <li><a href="#slide-09">Real Models: Timeline and Hot-Spot</a></li>
+        <li><a href="#slide-10">Process-Based Against Cycle-Based</a></li>
+        <li><a href="#slide-11">How gem5 and SST Are Structured</a></li>
+        <li><a href="#slide-12">The Hot Path in C++ with pybind11</a></li>
+        <li><a href="#slide-13">Modern C++ in the Port</a></li>
+        <li><a href="#slide-14">ONNX Runtime Execution Providers</a></li>
+        <li><a href="#slide-15">An FHE Workload: Polynomial Products via the NTT</a></li>
+        <li><a href="#slide-16">Computing in the Data Path (Speculative)</a></li>
+        <li><a href="#slide-17">Specification, Tests and CI</a></li>
+        <li><a href="#slide-18">Reading List</a></li>
+        <li><a href="#slide-19">What to Take Away</a></li>
+    </ul>
+    <div class="concepts">
+        <p><strong>Concepts used here, and where they are explained.</strong> Each links to a glossary entry: this <a href="https://brendanjameslynskey.github.io/SimEng_Hub_Toolkit/#glossary">series glossary</a>, or the glossaries of LLM Inference Simulators and FHE Accelerator Simulators for concepts those series already explain.</p>
+        <div class="chips"><a href="https://brendanjameslynskey.github.io/LLM_Hub_Inference_Simulators/#g-simpy" title="A small, pure-Python DES library: Environment, processes, timeouts, events, Resource, Container, Store and interrupts. It has no built-in statistics or tracing; the probes are yours to design.">SimPy</a><a href="https://brendanjameslynskey.github.io/LLM_Hub_Inference_Simulators/#g-des" title="A simulator whose state changes only at instants (events). A clock, a state, a time-ordered event list and handlers; the clock jumps from one event to the next (next-event time advance), so idle time costs nothing.">Discrete-event simulation (DES)</a><a href="https://brendanjameslynskey.github.io/LLM_Hub_Inference_Simulators/#g-process" title="Writing each entity&#x27;s life as one sequential function that suspends while it waits, instead of scattering it over event handlers. Python generators make this natural: yield an event, resume when it fires.">Process interaction and coroutines</a><a href="https://brendanjameslynskey.github.io/LLM_Hub_Inference_Simulators/#g-backpressure" title="Resource: N identical servers held for a while (links, engines). Store: a buffer of items (FIFOs). Container: an amount (credits, bytes). A finite-capacity Store makes producers wait when it is full, which is back-pressure.">Resources, stores, containers and back-pressure</a><a href="https://brendanjameslynskey.github.io/SimEng_Hub_Toolkit/#g-optrace" title="The operators a model executes, in order, with each tensor&#x27;s shape, element size, identity and whether it is a weight: the input a cost model needs from a front end.">Operator trace</a><a href="https://brendanjameslynskey.github.io/LLM_Hub_Inference_Simulators/#g-export" title="Capturing a PyTorch model ahead of time as one graph of ATen operators with fake-tensor shapes on every node; run_decompositions() lowers it to the smaller Core ATen set a cost model can cover.">torch.export and FX graphs</a><a href="https://brendanjameslynskey.github.io/SimEng_Hub_Toolkit/#g-onnxwalk" title="Walking an exported graph needs shape values propagated through Shape and Reshape chains (data_prop) and constant subgraphs folded as a runtime would; weights can be exported as typed inputs without their data.">ONNX shape inference and constant folding</a><a href="https://brendanjameslynskey.github.io/SimEng_Hub_Toolkit/#g-tiling" title="Turning each operator of a trace into tiles, the unit an accelerator loads, computes and stores: GEMMs are blocked so operands and result fit the on-chip buffer, other operators are cut into byte slices. Tiling sets both the extra memory traffic and how much load, compute and store overlap.">Lowering a graph to tiles</a><a href="https://brendanjameslynskey.github.io/SimEng_Hub_Toolkit/#g-im2col" title="A convolution is a matrix product once each output position&#x27;s input patch is laid out as a row: M = output positions, K = input channels per group × kernel size, N = output channels per group. It lets one matrix engine run both.">im2col: a convolution as a GEMM</a><a href="https://brendanjameslynskey.github.io/SimEng_Hub_Toolkit/#g-systolic" title="A grid of R × C multiply-accumulate cells that pass operands to their neighbours; in the output-stationary dataflow each cell accumulates one output. Its time per tile is about ⌈m/R⌉⌈n/C⌉k cycles plus a fill and drain, so PE efficiency drops when m or n is not a multiple of the array.">Systolic array (output-stationary)</a><a href="https://brendanjameslynskey.github.io/SimEng_Hub_Toolkit/#g-cycleapprox" title="A cycle-approximate model computes a block&#x27;s cycle count from a formula (or a few state changes); a cycle-accurate one evaluates every register on every cycle and matches RTL exactly. The first is fast enough to explore designs; the second is worth building when the question lies inside the cycles, or to calibrate the first.">Cycle-approximate and cycle-accurate models</a><a href="https://brendanjameslynskey.github.io/LLM_Hub_Inference_Simulators/#g-fidelity" title="The range of model detail from analytical formulas through discrete-event, transaction-level, cycle-level and RTL simulation to emulation, FPGA prototypes and silicon. Each rung is slower and more detailed; use the highest rung that answers the question.">The fidelity ladder</a><a href="https://brendanjameslynskey.github.io/LLM_Hub_Inference_Simulators/#g-roofline" title="Attainable performance is the lower of peak compute and bandwidth × arithmetic intensity (FLOPs per byte). The ridge point is the intensity at which both limits meet; below it a kernel is memory-bound.">Roofline, arithmetic intensity and ridge point</a><a href="https://brendanjameslynskey.github.io/LLM_Hub_Inference_Simulators/#g-little" title="L = λW: mean population equals arrival rate times mean time in system, for any stable system. With the utilisation and forced-flow laws it gives free consistency checks on a simulator&#x27;s probes.">Little's law and the operational laws</a><a href="https://brendanjameslynskey.github.io/LLM_Hub_Inference_Simulators/#g-mfu" title="Busy fraction says how often a resource works; model FLOPs and bandwidth utilisation say how much of its capability it uses. A continuous-batching decode engine is 100% busy at 4% MFU and about 77% MBU.">Utilisation, MFU and MBU</a><a href="https://brendanjameslynskey.github.io/SimEng_Hub_Toolkit/#g-stallattr" title="Splitting a run&#x27;s time into computing and the waits between tiles, each wait named by what the next load was waiting for (load bandwidth, buffer space, an earlier operator&#x27;s results). The parts sum to the latency, and the largest names the hot-spot: a sharper tool than utilisation.">Stall attribution</a><a href="https://brendanjameslynskey.github.io/SimEng_Hub_Toolkit/#g-rawmemory" title="When every operator writes its results to off-chip memory and the next reads them back, the next operator cannot start loading until the previous one is stored: the pipeline drains at every operator boundary. Fusion, keeping results on chip, removes the wait.">Read-after-write through memory</a><a href="https://brendanjameslynskey.github.io/SimEng_Hub_Toolkit/#g-fusionbound" title="Costing a trace per operator assumes every operator reads and writes memory (an upper bound); assuming only matmul, attention and gathers touch memory gives a lower bound. Real compilers fall between.">Unfused and ideal-fusion bounds</a><a href="https://brendanjameslynskey.github.io/LLM_Hub_Inference_Simulators/#g-hotspot" title="Finding where speeding things up would help most. A stage breakdown that sums exactly to each request&#x27;s latency, the largest waiting stage mapped to the resource that owns it, confirmed by what-if sensitivity runs.">Hot-spot attribution</a><a href="https://brendanjameslynskey.github.io/LLM_Hub_Inference_Simulators/#g-perfetto" title="A JSON timeline format (complete slices, counters, metadata) that Perfetto and chrome://tracing display. The simulator, ONNX Runtime&#x27;s profiler and RTL testbenches can all emit it, so timelines can be compared side by side.">Chrome trace events and Perfetto</a><a href="https://brendanjameslynskey.github.io/SimEng_Hub_Toolkit/#g-cyclebased" title="A process-based (event-driven) model jumps from one state change to the next; a cycle-based one evaluates every block on every clock edge, as RTL simulation does. On the same whole-cycle program they give identical answers; the cost scales with state changes for one and with cycles for the other.">Process-based against cycle-based modelling</a><a href="https://brendanjameslynskey.github.io/SimEng_Hub_Toolkit/#g-gem5sst" title="gem5: SimObjects configured from Python, connected by request and response ports that carry packets, with retries for flow control, and an event queue in ticks. SST: components connected by links with latencies, exchanging events, with clock handlers and conservative parallel simulation across ranks.">How gem5 and SST are structured</a><a href="https://brendanjameslynskey.github.io/LLM_Hub_Inference_Simulators/#g-pdes" title="Splitting one run across cores as logical processes: conservative (Chandy–Misra–Bryant, needs lookahead) or optimistic (Time Warp, rolls back). Worth it for large, loosely coupled models.">Parallel discrete-event simulation (PDES)</a><a href="https://brendanjameslynskey.github.io/SimEng_Hub_Toolkit/#g-recurrence" title="When nothing in a model is left to arbitrate (no two engines ever contend), every event time follows from earlier ones by additions and maxima, so the event loop can be replaced by a straight-line recurrence: same answers, bit for bit, at a fraction of the cost.">From an event loop to a recurrence</a><a href="https://brendanjameslynskey.github.io/SimEng_Hub_Toolkit/#g-bitexact" title="Two implementations that produce identical floating-point results, bit for bit. It requires the same operations in the same order, the same event order and the same library functions, and it turns any discrepancy into a located bug.">Bit-exact parity</a><a href="https://brendanjameslynskey.github.io/SimEng_Hub_Toolkit/#g-amdahl" title="Speeding up part of a program speeds up the whole only in proportion to that part&#x27;s share of the time. After porting a simulator&#x27;s engine, the Python code around it can dominate.">Amdahl's law for a port</a><a href="https://brendanjameslynskey.github.io/SimEng_Hub_Toolkit/#g-pybind11" title="A header-only C++ library that exposes C++ functions and classes to Python, converting standard containers automatically; built here by setuptools with Pybind11Extension. Bound objects are owned through a holder, std::unique_ptr by default.">pybind11</a><a href="https://brendanjameslynskey.github.io/SimEng_Hub_Toolkit/#g-moderncpp" title="Templates write code once for many types, and C++20 concepts state what a type must support; move semantics transfer a container&#x27;s storage instead of copying it; smart pointers (unique_ptr, shared_ptr) free memory when its owner goes, so no delete is written.">Templates, concepts, move semantics and smart pointers</a><a href="https://brendanjameslynskey.github.io/LLM_Hub_Inference_Simulators/#g-onnxrt" title="ONNX is a framework-neutral graph format; ONNX Runtime partitions graphs between execution providers, each claiming the nodes it can run, with fallback to the CPU.">ONNX and ONNX Runtime execution providers</a><a href="https://brendanjameslynskey.github.io/SimEng_Hub_Toolkit/#g-epgetcap" title="How ONNX Runtime hands part of a graph to a hardware backend: each execution provider says which nodes it can run, connected claimed nodes are fused into subgraphs, the rest falls back to the CPU provider, and tensors crossing between them cost transfers.">Execution-provider partitioning (GetCapability)</a><a href="https://brendanjameslynskey.github.io/SimEng_Hub_Toolkit/#g-opcoverage" title="Which operators a cost model has rules for, and which the accelerator runs: counted by operators, FLOPs and time, because a device can hold nearly all the FLOPs and little of the time.">Operator coverage</a><a href="https://brendanjameslynskey.github.io/FHE_Hub_Accelerator_Simulators/#g-rns" title="The ciphertext modulus Q is a product of word-sized primes, so each polynomial is stored as one row (&#x27;limb&#x27;) of N residues per prime. A ciphertext at level ℓ has ℓ+1 limbs; all arithmetic stays in 64-bit words.">RNS polynomials and limbs</a><a href="https://brendanjameslynskey.github.io/FHE_Hub_Accelerator_Simulators/#g-ntt" title="The FFT over a finite field Zq. It moves a limb between coefficient and evaluation form in (N/2) log N butterflies, so polynomial multiplication becomes element-wise. Every key switch and rescale runs NTTs.">Number-theoretic transform (NTT)</a><a href="https://brendanjameslynskey.github.io/SimEng_Hub_Toolkit/#g-nttpolymul" title="Multiplying two polynomials modulo XN+1 by transforming both with the number-theoretic transform, multiplying pointwise and transforming back, after a twist by a 2N-th root of unity: O(N log N) instead of O(N2), and the core workload of lattice-based FHE.">Polynomial products via the NTT</a><a href="https://brendanjameslynskey.github.io/FHE_Hub_Accelerator_Simulators/#g-bootstrap" title="Evaluating decryption homomorphically to turn a level-0 ciphertext into one at a high level: ModRaise, CoeffToSlot, EvalMod, SlotToCoeff. It costs hundreds of key switches and gigabytes of keys.">Bootstrapping</a><a href="https://brendanjameslynskey.github.io/SimEng_Hub_Toolkit/#g-datapath" title="Doing work on data while it moves (in memory, in the network, in a link) instead of moving it to a processor first. It pays when the moved data needs little arithmetic per byte and the destination engine is the bottleneck; a stage slower than the stream throttles it.">Computing in the data path</a><a href="https://brendanjameslynskey.github.io/FHE_Hub_Accelerator_Simulators/#g-optics" title="A lens Fourier-transforms the light field; two lenses with a mask between them multiply in the frequency domain, which is a convolution. The transform is free; the converters and lasers around it are not.">Fourier optics and the 4f system</a><a href="https://brendanjameslynskey.github.io/SimEng_Hub_Toolkit/#g-ears" title="The Easy Approach to Requirements Syntax: ubiquitous, event-driven (When), state-driven (While), unwanted-behaviour (If ... then) and optional-feature (Where) patterns, and combinations of them.">EARS</a><a href="https://brendanjameslynskey.github.io/SimEng_Hub_Toolkit/#g-traceability" title="The links from each requirement to the tests and evidence that verify it, checked in both directions; generated from the test run, a missing link is a visible gap.">Traceability matrix</a><a href="https://brendanjameslynskey.github.io/LLM_Hub_Inference_Simulators/#g-hypothesis" title="Generate many random configurations and check that invariants hold for all of them; Hypothesis shrinks any failure to a minimal example.">Property-based testing (Hypothesis)</a><a href="https://brendanjameslynskey.github.io/LLM_Hub_Inference_Simulators/#g-differential" title="Requiring two independent implementations to agree exactly on the same input: here the fast path against the baseline, and the browser JavaScript against the Python simulator.">Differential testing</a><a href="https://brendanjameslynskey.github.io/LLM_Hub_Inference_Simulators/#g-ci" title="Run tests on every push and sweeps nightly (Jenkins or similar); fail the build if golden metrics drift; track correlation error, coverage, simulator speed and test health as engineering metrics.">CI, golden metrics and engineering metrics</a></div>
+    </div>
+</section>
+
+<section class="slide" id="slide-01">
+    <div class="slide-number">01</div>
+    <h2>What the Model Must Answer</h2>
+    <p>Deck 10 turned PyTorch and ONNX models into operator traces and costed them on a roofline: one number per operator, no queues, no contention. An architect's next questions need time to <em>pass</em>: while the array computes, is the next tile already loading? Does the buffer fill? Which engine is everyone waiting for? This deck builds the event-driven model that answers them, <code>simfront.accel</code> in <a href="https://github.com/BrendanJamesLynskey/Torch_Sim_Frontend">Torch_Sim_Frontend</a>, and runs real graphs through it end to end.</p>
+    <div class="canvas-wrap">
+        <svg viewBox="0 0 720 220" width="720" height="220" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Block diagram: off-chip memory channels connect through NoC read and write networks to a load DMA and a store DMA; the load DMA fills an on-chip buffer whose ready FIFO feeds a compute array and a vector unit; results go back through a done FIFO to the store DMA">
+            <style>
+                .a1 { fill: #2b2520; stroke: #aabd59; stroke-width: 1.5; }
+                .a2 { fill: #2b2520; stroke: #e3b174; stroke-width: 1.5; }
+                .a3 { fill: #2b2520; stroke: #97cdc6; stroke-width: 1.5; }
+                .at { fill: #efe8dc; font-family: 'Geist Mono', monospace; font-size: 11px; }
+                .ad { fill: #a2978b; font-family: 'Geist Mono', monospace; font-size: 10px; }
+                .aa { stroke: #a2978b; stroke-width: 1.3; fill: none; marker-end: url(#aa14); }
+            </style>
+            <defs><marker id="aa14" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#a2978b"/></marker></defs>
+            <rect x="10" y="70" width="120" height="70" rx="6" class="a1"/><text x="20" y="94" class="at">off-chip</text><text x="20" y="110" class="at">memory</text><text x="20" y="128" class="ad">channels, GB/s</text>
+            <rect x="170" y="30" width="110" height="44" rx="6" class="a1"/><text x="180" y="50" class="at">NoC read</text><text x="180" y="66" class="ad">per direction</text>
+            <rect x="170" y="140" width="110" height="44" rx="6" class="a1"/><text x="180" y="160" class="at">NoC write</text><text x="180" y="176" class="ad">per direction</text>
+            <rect x="320" y="30" width="100" height="44" rx="6" class="a2"/><text x="330" y="50" class="at">load DMA</text><text x="330" y="66" class="ad">in order</text>
+            <rect x="320" y="140" width="100" height="44" rx="6" class="a2"/><text x="330" y="160" class="at">store DMA</text><text x="330" y="176" class="ad">in order</text>
+            <rect x="460" y="70" width="110" height="70" rx="6" class="a2"/><text x="470" y="94" class="at">on-chip</text><text x="470" y="110" class="at">buffer</text><text x="470" y="128" class="ad">back-pressure</text>
+            <rect x="605" y="30" width="105" height="44" rx="6" class="a3"/><text x="615" y="50" class="at">compute array</text><text x="615" y="66" class="ad">R x C MAC/cycle</text>
+            <rect x="605" y="140" width="105" height="44" rx="6" class="a3"/><text x="615" y="160" class="at">vector unit</text><text x="615" y="176" class="ad">lanes/cycle</text>
+            <path d="M132,95 L168,55" class="aa"/><path d="M168,162 L132,120" class="aa"/>
+            <path d="M282,52 L318,52" class="aa"/><path d="M318,162 L282,162" class="aa"/>
+            <path d="M422,52 L470,72" class="aa"/><path d="M470,138 L422,162" class="aa"/>
+            <path d="M572,88 L603,58" class="aa"/><path d="M572,120 L603,155" class="aa"/>
+            <text x="548" y="62" class="ad">ready</text><text x="548" y="156" class="ad">done</text>
+        </svg>
+    </div>
+    <p>Its one-page block specification (<a href="https://github.com/BrendanJamesLynskey/Torch_Sim_Frontend/blob/main/docs/accel_spec.md">docs/accel_spec.md</a>) is written as for a hardware block: contents, interfaces, behaviour, timing, ordering, counters and assumptions. Every number on these slides comes from <a href="https://github.com/BrendanJamesLynskey/Torch_Sim_Frontend/blob/main/examples/accel_results.md">examples/accel_results.md</a>, and the two presets (<code>edge-npu</code>, <code>dc-npu</code>) are <strong>illustrative</strong>.</p>
+</section>
+
+<section class="slide" id="slide-02">
+    <div class="slide-number">02</div>
+    <h2>SimPy Primitives, Mapped to Hardware</h2>
+    <p>SimPy has few primitives (<a href="https://brendanjameslynskey.github.io/InfSim_02_Simulator_Development_Tutorial/#slide-06">InfSim 02 lists them all</a>), and a data-movement accelerator needs only these:</p>
+    <div class="table-wrap"><table>
+        <thead><tr><th>Block</th><th>SimPy</th><th>What the primitive gives for free</th></tr></thead>
+        <tbody>
+            <tr><td>Memory channels</td><td><code>Resource(capacity=channels)</code></td><td>A queue of transfers waiting for a channel</td></tr>
+            <tr><td>NoC read, NoC write</td><td><code>Resource(capacity=1)</code> each</td><td>Serialisation per direction (separate read and write networks, as on AXI)</td></tr>
+            <tr><td>On-chip buffer</td><td><code>Container(capacity=bytes)</code></td><td><code>put(n)</code> waits until n bytes are free: back-pressure</td></tr>
+            <tr><td>Ready and done FIFOs</td><td><code>Store()</code></td><td>Hand-off between engines, in order</td></tr>
+            <tr><td>DMA engines, compute</td><td>processes (generators)</td><td>Each engine's life as one readable function</td></tr>
+            <tr><td>"Operator stored"</td><td><code>Event()</code></td><td>Read-after-write dependencies between operators</td></tr>
+        </tbody>
+    </table></div>
+    <div class="code-block">
+        <div class="code-header">sim.py: the load DMA, one process <a class="src-link" href="https://github.com/BrendanJamesLynskey/Torch_Sim_Frontend/blob/main/src/simfront/accel/sim.py">source</a></div>
+        <pre><code><span class="kw">def</span> <span class="fn">load_dma</span>():
+    <span class="kw">for</span> i, t <span class="kw">in</span> <span class="fn">enumerate</span>(tiles):
+        tm.issue[i] = env.now
+        o = first.<span class="fn">get</span>(i)
+        <span class="kw">if</span> o <span class="kw">is</span> <span class="kw">not</span> <span class="kw">None</span> <span class="kw">and</span> o.deps:
+            <span class="kw">yield</span> env.<span class="fn">all_of</span>([op_done[d] <span class="kw">for</span> d <span class="kw">in</span> o.deps])
+        tm.dep[i] = env.now
+        <span class="kw">if</span> t.alloc:
+            <span class="kw">yield</span> buf.<span class="fn">put</span>(t.alloc)
+        tm.alloc[i] = env.now
+        <span class="kw">if</span> t.load_dur &gt; <span class="num">0</span>:
+            <span class="kw">yield</span> <span class="kw">from</span> <span class="fn">transfer</span>(t.load_dur, noc_r)
+        tm.load_end[i] = env.now
+        <span class="kw">yield</span> ready.<span class="fn">put</span>(i)</code></pre>
+    </div>
+</section>
+
+<section class="slide" id="slide-03">
+    <div class="slide-number">03</div>
+    <h2>Back-Pressure in the Smallest Model</h2>
+    <p>Before the accelerator, the property that matters most in it: a producer and a consumer joined by <code>simpy.Store(capacity=depth)</code>. A full FIFO makes <code>put</code> wait, so a producer that runs ahead is stalled instead of filling an infinite queue. The probe records the depth at every change; <a href="https://github.com/BrendanJamesLynskey/Torch_Sim_Frontend/blob/main/src/simfront/accel/fifo.py">fifo.py</a> is the whole model.</p>
+    <img src="assets/fifo_depth.png" alt="Two step plots of FIFO depth over time. Top: a consumer 20% slower than the producer fills a 16-deep FIFO to the top and keeps a 2-deep FIFO full; the producer is blocked about 16 to 17% of the time either way. Bottom: balanced rates with bursts of eight; the 16-deep FIFO absorbs each burst, the 2-deep one blocks the producer 39% of the time." style="width: 100%; border-radius: 6px; border: 1px solid var(--border);">
+    <div class="table-wrap"><table>
+<thead><tr><th>Case</th><th>Depth</th><th>Throughput (items/unit)</th><th>Producer blocked</th><th>L</th><th>λW</th></tr></thead>
+<tbody>
+<tr><td>slow consumer</td><td>1</td><td>0.8271</td><td>17.0%</td><td>0.809</td><td>0.809</td></tr>
+<tr><td>slow consumer</td><td>2</td><td>0.8308</td><td>16.6%</td><td>1.761</td><td>1.761</td></tr>
+<tr><td>slow consumer</td><td>4</td><td>0.8317</td><td>16.4%</td><td>3.709</td><td>3.709</td></tr>
+<tr><td>slow consumer</td><td>8</td><td>0.8317</td><td>16.2%</td><td>7.641</td><td>7.641</td></tr>
+<tr><td>slow consumer</td><td>16</td><td>0.8317</td><td>15.9%</td><td>15.373</td><td>15.373</td></tr>
+<tr><td>bursty</td><td>1</td><td>0.5741</td><td>42.9%</td><td>0.503</td><td>0.503</td></tr>
+<tr><td>bursty</td><td>2</td><td>0.6181</td><td>38.5%</td><td>1.003</td><td>1.003</td></tr>
+<tr><td>bursty</td><td>4</td><td>0.7219</td><td>28.1%</td><td>2.021</td><td>2.021</td></tr>
+<tr><td>bursty</td><td>8</td><td>0.9054</td><td>9.6%</td><td>4.208</td><td>4.208</td></tr>
+<tr><td>bursty</td><td>16</td><td>0.9641</td><td>3.4%</td><td>7.805</td><td>7.805</td></tr>
+</tbody></table></div>
+    <p class="src">Source: <a href="https://github.com/BrendanJamesLynskey/Torch_Sim_Frontend/blob/main/examples/accel_results.md">examples/accel_results.md</a> in Torch_Sim_Frontend</p>
+    <p><strong>Depth buys throughput only when the rates vary.</strong> With a consumer 20% slower, depth changes nothing (the consumer sets the rate). With bursty arrivals, going from depth 1 to 16 raises throughput from 0.5741 to 0.9641. Little's law (L = &lambda;W) holds exactly on every run, which the tests assert: a free check on the probes.</p>
+</section>
+
+<section class="slide" id="slide-04">
+    <div class="slide-number">04</div>
+    <h2>From a Graph to Tiles</h2>
+    <p>The model takes a <code>simfront-trace/1</code> trace from any of deck 10's front ends (<a href="https://brendanjameslynskey.github.io/SimEng_10_PyTorch_ONNX_Frontends/#slide-06">torch.export</a>, <a href="https://brendanjameslynskey.github.io/SimEng_10_PyTorch_ONNX_Frontends/#slide-07">ONNX</a>, the dispatch trace) and <strong>lowers</strong> it to tiles: the unit the hardware loads, computes and stores.</p>
+    <div class="diagram-grid cols-2">
+        <div class="diagram-panel g">
+            <h3>Which unit</h3>
+            <ul>
+                <li>Matmul, convolution, attention &rarr; the <strong>compute array</strong>. A convolution is an <strong>im2col GEMM</strong>: M = output positions, K = C<sub>in</sub>/groups &times; kernel, N = C<sub>out</sub>/groups.</li>
+                <li>Elementwise, norms, softmax, pooling, gathers, NTTs &rarr; the <strong>vector unit</strong>.</li>
+                <li>Views are free; operators without a cost rule are counted, not simulated.</li>
+            </ul>
+        </div>
+        <div class="diagram-panel y">
+            <h3>How it is tiled</h3>
+            <ul>
+                <li>A GEMM is blocked so each tile's operands and result fit in half the buffer (double buffering), halving the largest block dimension until it fits.</li>
+                <li>Each tile loads both operand blocks (no reuse: the simplest dataflow, and it shows the cost of tiling as extra traffic).</li>
+                <li>Every operator's first load waits until its producers are <strong>stored</strong>: a read-after-write dependency through memory.</li>
+            </ul>
+        </div>
+    </div>
+    <div class="code-block">
+        <div class="code-header">lower.py: blocking a GEMM to fit the buffer <a class="src-link" href="https://github.com/BrendanJamesLynskey/Torch_Sim_Frontend/blob/main/src/simfront/accel/lower.py">source</a></div>
+        <pre><code><span class="kw">def</span> <span class="fn">_split_gemm</span>(b: int, m: int, k: int, n: int, e_in: int, e_out: int, budget: int):
+    <span class="str">""</span><span class="str">"Block sizes (bb, bm, bk, bn) whose operands and result fit in ``budget`` bytes."</span><span class="str">""</span>
+    <span class="kw">def</span> <span class="fn">size</span>(bb, bm, bk, bn):
+        <span class="kw">return</span> bb * (e_in * (bm * bk + bk * bn) + e_out * bm * bn)
+
+    bm, bk, bn = m, k, n
+    <span class="kw">while</span> <span class="fn">size</span>(<span class="num">1</span>, bm, bk, bn) &gt; budget:
+        big = <span class="fn">max</span>(bm, bk, bn)
+        <span class="kw">if</span> big == <span class="num">1</span>:
+            <span class="kw">raise</span> <span class="type">ValueError</span>(f<span class="str">"a 1x1x1 GEMM block does not fit in a {budget}-byte tile"</span>)
+        <span class="kw">if</span> bm == big:
+            bm = math.<span class="fn">ceil</span>(bm / <span class="num">2</span>)
+        <span class="kw">elif</span> bn == big:
+            bn = math.<span class="fn">ceil</span>(bn / <span class="num">2</span>)
+        <span class="kw">else</span>:
+            bk = math.<span class="fn">ceil</span>(bk / <span class="num">2</span>)
+    bb = <span class="fn">max</span>(<span class="num">1</span>, <span class="fn">min</span>(b, budget // <span class="fn">size</span>(<span class="num">1</span>, bm, bk, bn))) <span class="kw">if</span> (bm, bk, bn) == (m, k, n) <span class="kw">else</span> <span class="num">1</span>
+    <span class="kw">return</span> bb, bm, bk, bn</code></pre>
+    </div>
+    <p>The same CNN exported by torch.export and by ONNX does the same 2,802,304 multiply-accumulates on the array by both routes (a test asserts it).</p>
+</section>
+
+<section class="slide" id="slide-05">
+    <div class="slide-number">05</div>
+    <h2>The Timing Model: Cycle-Approximate Components</h2>
+    <p>Every duration is computed once, at lowering, so all three engines (the SimPy model, the fast path and the cycle-stepped twin) run the identical program.</p>
+    <div class="table-wrap"><table>
+        <thead><tr><th>Event</th><th>Duration</th><th>Level of detail</th></tr></thead>
+        <tbody>
+            <tr><td>Transfer of <em>b</em> bytes</td><td>latency<sub>DRAM</sub> + latency<sub>NoC</sub> + b / min(BW<sub>DRAM</sub>/channels, BW<sub>NoC</sub>)</td><td>Transaction: no banks, rows or bursts</td></tr>
+            <tr><td>Array tile (batch, m, k, n)</td><td>batch &middot; &lceil;m/R&rceil; &middot; &lceil;n/C&rceil; &middot; k + R + C cycles</td><td>Cycle-approximate: output-stationary systolic array, fill and drain once per tile</td></tr>
+            <tr><td>Vector tile of <em>w</em> elements</td><td>&lceil;w / lanes&rceil; cycles</td><td>Throughput only</td></tr>
+        </tbody>
+    </table></div>
+    <div class="callout">
+        <div class="callout-label">Cycle-approximate against cycle-accurate</div>
+        <p>The array formula is right to within a fill and drain per tile, and it captures the effect that matters to an architect: <strong>PE efficiency</strong> falls when m or n is not a multiple of the array size. A cycle-accurate model of the same array (every PE register, every skewed input) would agree on large tiles and cost orders of magnitude more to run. It is worth building when the question is <em>inside</em> the tile (a dataflow choice, a hazard), or to calibrate the formula against RTL, as <a href="https://brendanjameslynskey.github.io/SimEng_05_Verification_Bridge_cocotb/">SimEng 05</a> does for an NTT core. <a href="https://brendanjameslynskey.github.io/InfSim_01_Why_Simulate/#slide-03">InfSim 01's fidelity ladder</a> puts the rule in one line: use the highest rung that can answer the question.</p>
+    </div>
+</section>
+
+<section class="slide" id="slide-06">
+    <div class="slide-number">06</div>
+    <h2>Methods: Roofline, Little's Law, Utilisation and Bottlenecks</h2>
+    <p>Four first-order methods that every simulator result should be checked against, and how this model uses each:</p>
+    <div class="table-wrap"><table>
+        <thead><tr><th>Method</th><th>Statement</th><th>In this model</th></tr></thead>
+        <tbody>
+            <tr><td><strong>Roofline</strong> (<a href="https://brendanjameslynskey.github.io/InfSim_03_LLM_Inference_Workloads/#slide-04">InfSim 03</a>)</td><td>time &ge; max(FLOPs / peak, bytes / bandwidth)</td><td>A <a href="https://brendanjameslynskey.github.io/SimEng_Hub_Toolkit/#g-bounds">lower bound</a>: the makespan is at least the total load time and at least the total compute time (tested)</td></tr>
+            <tr><td><strong>Little's law</strong> (<a href="https://brendanjameslynskey.github.io/InfSim_06_Metrics_Hotspots_Validation/#slide-03">InfSim 06</a>)</td><td>L = &lambda;W for any stable system</td><td>Asserted exactly on the FIFO model; a violation would be a probe bug</td></tr>
+            <tr><td><strong>Utilisation law</strong></td><td>U = X &middot; S: busy fraction = throughput &times; service time</td><td>Every component's busy fraction, from its intervals; memory and NoC also as bandwidth used</td></tr>
+            <tr><td><strong>Bottleneck analysis</strong> (<a href="https://brendanjameslynskey.github.io/InfSim_06_Metrics_Hotspots_Validation/#slide-04">InfSim 06</a>)</td><td>The resource whose speed-up most shortens the run</td><td>Stall attribution (next slide): the largest wait names the hot-spot</td></tr>
+        </tbody>
+    </table></div>
+    <p><strong>Latency against throughput.</strong> One inference's latency is the makespan; throughput needs the pipeline full. The FIFO slide is the throughput side of the same trade: depth (and buffer) buys throughput under variable rates, and costs latency and area (<a href="https://brendanjameslynskey.github.io/SimEng_13_PPA_Tradeoffs/#slide-02">SimEng 13</a>).</p>
+    <p><strong>Utilisation is not saturation.</strong> GPT-2's prefill on <code>edge-npu</code> keeps the array at 31.0% (PE efficiency 98.1%) efficiency when busy, but busy only 31.0% of the run: the arithmetic is efficient, the array is starved.</p>
+</section>
+
+<section class="slide" id="slide-07">
+    <div class="slide-number">07</div>
+    <h2>Finding the Stalls</h2>
+    <p>The compute units issue in order, so the run splits exactly into computing and the gaps between tiles. Each gap is attributed by walking back along the next tile's load: was it <strong>transferring</strong> (or the DMA still busy with earlier tiles: <em>load bandwidth</em>), waiting for <strong>buffer space</strong> (<em>buffer full</em>), or waiting for an earlier operator's results to be <strong>stored</strong> (<em>dependency</em>)? The parts sum to the latency on every run, a tested invariant.</p>
+    <div class="table-wrap"><table>
+<thead><tr><th>Where the compute units' time went</th><th>Share</th></tr></thead>
+<tbody>
+<tr><td>compute</td><td>6.4%</td></tr>
+<tr><td>load bandwidth</td><td>59.8%</td></tr>
+<tr><td>buffer full</td><td>0.0%</td></tr>
+<tr><td>dependency</td><td>33.7%</td></tr>
+<tr><td>store tail</td><td>0.1%</td></tr>
+</tbody></table></div>
+    <p class="src">Source: <a href="https://github.com/BrendanJamesLynskey/Torch_Sim_Frontend/blob/main/examples/accel_results.md">examples/accel_results.md</a> in Torch_Sim_Frontend</p>
+    <p>For the small CNN on <code>edge-npu</code>, compute is 6.4% of the time; the hot-spot is off-chip memory, and the operator boundaries cost a third.</p>
+    <div class="callout">
+        <div class="callout-label">A bigger buffer made it slower</div>
+        <p>Eight images at 102.4 GB/s on a 32 &times; 32 array: a 512 KiB buffer gives 158.84 µs, a 2 MiB buffer 204.45 µs. Tiles grow with the buffer, so each operator has fewer, larger tiles and less overlap of load, compute and store; the dependency share rises from 14.7% to 27.4%. Tile size is a design parameter in its own right.</p>
+    </div>
+</section>
+
+<section class="slide" id="slide-08">
+    <div class="slide-number">08</div>
+    <h2>Interactive: Where the Time Goes</h2>
+    <p>The recorded sweep (batch of eight images through the CNN, on the C++ fast path). Choose a configuration; the bar splits the compute units' time into computing and the three kinds of stall.</p>
+    <div class="control-panel">
+        <div class="sim-grid">
+            <div class="control-row"><label for="wt-buf">On-chip buffer</label><select id="wt-buf"></select></div>
+            <div class="control-row"><label for="wt-bw">DRAM bandwidth (GB/s)</label><select id="wt-bw"></select></div>
+            <div class="control-row"><label for="wt-arr">Compute array</label><select id="wt-arr"></select></div>
+        </div>
+        <div class="metric-grid" id="wt-mt"></div>
+        <div class="canvas-wrap"><svg id="wt-svg" viewBox="0 0 720 120" width="720" height="120" xmlns="http://www.w3.org/2000/svg"></svg></div>
+        <div class="result-box" id="wt-r"></div>
+    </div>
+    <script>
+    (function () {
+        const SWEEP = [["Buffer", "DRAM GB/s", "Array", "Tiles", "Latency (\u00b5s)", "Computing", "Load bandwidth", "Buffer full", "Dependency", "Hot-spot"], ["128 KiB", "12.8", "32x32", "184", "1,083.33", "5.2%", "90.1%", "0.0%", "4.6%", "off-chip memory"], ["128 KiB", "12.8", "64x64", "184", "1,083.11", "4.4%", "90.9%", "0.0%", "4.6%", "off-chip memory"], ["128 KiB", "25.6", "32x32", "184", "560.16", "10.1%", "85.2%", "0.0%", "4.6%", "off-chip memory"], ["128 KiB", "25.6", "64x64", "184", "559.95", "8.6%", "86.8%", "0.0%", "4.6%", "off-chip memory"], ["128 KiB", "102.4", "32x32", "184", "167.78", "33.9%", "61.5%", "0.0%", "4.6%", "off-chip memory"], ["128 KiB", "102.4", "64x64", "184", "167.57", "28.7%", "66.7%", "0.0%", "4.6%", "off-chip memory"], ["512 KiB", "12.8", "32x32", "46", "1,097.59", "4.7%", "79.3%", "0.0%", "16.0%", "off-chip memory"], ["512 KiB", "12.8", "64x64", "46", "1,095.11", "3.5%", "80.5%", "0.0%", "16.0%", "off-chip memory"], ["512 KiB", "25.6", "32x32", "46", "561.14", "9.3%", "75.0%", "0.0%", "15.8%", "off-chip memory"], ["512 KiB", "25.6", "64x64", "46", "558.66", "6.9%", "77.3%", "0.0%", "15.8%", "off-chip memory"], ["512 KiB", "102.4", "32x32", "46", "158.84", "32.7%", "52.6%", "0.0%", "14.7%", "off-chip memory"], ["512 KiB", "102.4", "64x64", "46", "156.32", "24.5%", "60.5%", "0.0%", "14.9%", "off-chip memory"], ["2048 KiB", "12.8", "32x32", "17", "1,345.73", "3.8%", "63.7%", "0.0%", "32.5%", "off-chip memory"], ["2048 KiB", "12.8", "64x64", "17", "1,335.04", "2.7%", "64.5%", "0.0%", "32.7%", "off-chip memory"], ["2048 KiB", "25.6", "32x32", "17", "693.57", "7.4%", "61.0%", "0.0%", "31.6%", "off-chip memory"], ["2048 KiB", "25.6", "64x64", "17", "682.88", "5.3%", "62.5%", "0.0%", "32.1%", "off-chip memory"], ["2048 KiB", "102.4", "32x32", "17", "204.45", "24.9%", "47.6%", "0.0%", "27.4%", "off-chip memory"], ["2048 KiB", "102.4", "64x64", "17", "193.77", "18.8%", "52.2%", "0.0%", "28.9%", "off-chip memory"]];  // from Torch_Sim_Frontend/examples/accel_results.md
+        const $ = id => document.getElementById(id);
+        const h = SWEEP[0], col = n => h.indexOf(n);
+        const rows = SWEEP.slice(1).map(r => ({ buf: r[col('Buffer')], bw: r[col('DRAM GB/s')], arr: r[col('Array')],
+            lat: r[col('Latency (µs)')], c: parseFloat(r[col('Computing')]), lb: parseFloat(r[col('Load bandwidth')]),
+            bf: parseFloat(r[col('Buffer full')]), dp: parseFloat(r[col('Dependency')]), hot: r[col('Hot-spot')], tiles: r[col('Tiles')] }));
+        const uniq = k => [...new Set(rows.map(r => r[k]))];
+        uniq('buf').forEach(v => $('wt-buf').add(new Option(v, v)));
+        uniq('bw').forEach(v => $('wt-bw').add(new Option(v, v)));
+        uniq('arr').forEach(v => $('wt-arr').add(new Option(v, v)));
+        $('wt-buf').value = '512 KiB'; $('wt-bw').value = '25.6'; $('wt-arr').value = '32x32';
+        function draw() {
+            const r = rows.find(x => x.buf === $('wt-buf').value && x.bw === $('wt-bw').value && x.arr === $('wt-arr').value);
+            const m = (l, v) => `<div class="metric"><div class="metric-label">${l}</div><div class="metric-value">${v}</div></div>`;
+            $('wt-mt').innerHTML = m('Latency', r.lat + ' µs') + m('Tiles', r.tiles) + m('Computing', r.c.toFixed(1) + '%') + m('Hot-spot', r.hot);
+            const parts = [['computing', r.c, '#aabd59'], ['load bandwidth', r.lb, '#de805a'], ['buffer full', r.bf, '#97cdc6'], ['dependency', r.dp, '#e3b174']];
+            let x = 20, s = '';
+            parts.forEach(([l, v, c], j) => {
+                const w = 680 * v / 100;
+                s += `<rect x="${x}" y="14" width="${w}" height="34" fill="${c}"/>`;
+                x += w;
+                s += `<rect x="${20 + 170 * j}" y="70" width="10" height="10" fill="${c}"/><text x="${34 + 170 * j}" y="79" fill="#efe8dc" font-family="Geist Mono, monospace" font-size="11">${l} ${v.toFixed(1)}%</text>`;
+            });
+            $('wt-svg').innerHTML = s;
+            const big = parts.slice(1).reduce((a, b) => (b[1] > a[1] ? b : a));
+            $('wt-r').innerHTML = `The compute units are busy ${r.c.toFixed(1)}% of the run; the largest wait is <strong>${big[0]}</strong> (${big[1].toFixed(1)}%). ` +
+                (big[0] === 'load bandwidth' ? 'More memory bandwidth shortens the run; a bigger array does not.' : 'Smaller tiles (or fusing operators so results stay on chip) would recover the overlap lost at operator boundaries.');
+        }
+        ['wt-buf', 'wt-bw', 'wt-arr'].forEach(id => $(id).addEventListener('input', draw));
+        draw();
+    })();
+    </script>
+</section>
+
+<section class="slide" id="slide-09">
+    <div class="slide-number">09</div>
+    <h2>Real Models: Timeline and Hot-Spot</h2>
+    <p>Published configurations, traced on the meta device without weights (deck 10), then simulated:</p>
+    <div class="table-wrap"><table>
+<thead><tr><th>Model</th><th>Tokens</th><th>Preset</th><th>Tiles</th><th>Latency (ms)</th><th>Array busy</th><th>DRAM bandwidth used</th><th>Hot-spot</th></tr></thead>
+<tbody>
+<tr><td>gpt2</td><td>128</td><td>edge-npu</td><td>1,051</td><td>51.837</td><td>31.0%</td><td>56.4%</td><td>off-chip memory</td></tr>
+<tr><td>gpt2</td><td>128</td><td>dc-npu</td><td>463</td><td>4.212</td><td>24.2%</td><td>10.2%</td><td>off-chip memory</td></tr>
+<tr><td>llama3-8b</td><td>2048</td><td>dc-npu</td><td>17,991</td><td>1,613.057</td><td>62.5%</td><td>9.4%</td><td>compute array</td></tr>
+</tbody></table></div>
+    <p class="src">Source: <a href="https://github.com/BrendanJamesLynskey/Torch_Sim_Frontend/blob/main/examples/accel_results.md">examples/accel_results.md</a> in Torch_Sim_Frontend</p>
+    <img src="assets/timeline_gpt2.png" alt="Timeline of GPT-2's 128-token prefill on edge-npu: the load DMA lane is almost always busy, the compute array lane shows short bursts, the vector unit is nearly idle, buffer occupancy oscillates between about 40% and 95%, and at the end the LM-head matmul streams for about 8 ms" style="width: 100%; border-radius: 6px; border: 1px solid var(--border);">
+    <p>The timeline shows the hot-spot at a glance: the load DMA lane is nearly solid, the array lane is not. The last 8 ms is the LM-head matmul (50,257 &times; 768 weights): 15.5% of the run in one operator. Llama-3-8B on <code>dc-npu</code> is the opposite case: compute-bound, with the hot-spot on the array. The same intervals are written as a Chrome trace for <a href="https://brendanjameslynskey.github.io/InfSim_06_Metrics_Hotspots_Validation/#slide-05">Perfetto</a>.</p>
+</section>
+
+<section class="slide" id="slide-10">
+    <div class="slide-number">10</div>
+    <h2>Process-Based Against Cycle-Based</h2>
+    <p>An RTL simulator advances a clock and evaluates every block on every edge (<a href="https://brendanjameslynskey.github.io/Introduction_to_Simulation/#/12">Introduction to Simulation</a> measures Icarus against <a href="https://brendanjameslynskey.github.io/SimEng_Hub_Toolkit/#g-verilator">Verilator</a>). <a href="https://github.com/BrendanJamesLynskey/Torch_Sim_Frontend/blob/main/src/simfront/accel/cycle.py">cycle.py</a> does that to this accelerator: on every cycle each engine is a state machine that retires its tile if its countdown has expired and starts the next if it can. The SimPy model instead jumps from one state change to the next.</p>
+    <div class="table-wrap"><table>
+<thead><tr><th>Program</th><th>Tiles</th><th>Cycles</th><th>SimPy events</th><th>Cycle-model evaluations</th><th>SimPy (s)</th><th>Cycle-stepped (s)</th><th>Slower by</th><th>Identical</th></tr></thead>
+<tbody>
+<tr><td>tiny-cnn</td><td>14</td><td>104,439</td><td>314</td><td>313,449</td><td>0.001</td><td>0.04</td><td>41x</td><td>yes</td></tr>
+<tr><td>tiny-llama, 32 tokens</td><td>139</td><td>973,135</td><td>2,999</td><td>2,920,647</td><td>0.009</td><td>0.27</td><td>31x</td><td>yes</td></tr>
+<tr><td>gpt2, 128 tokens</td><td>1051</td><td>51,837,348</td><td>20,775</td><td>155,520,753</td><td>0.059</td><td>13.83</td><td>233x</td><td>yes</td></tr>
+</tbody></table></div>
+    <p class="src">Source: <a href="https://github.com/BrendanJamesLynskey/Torch_Sim_Frontend/blob/main/examples/accel_results.md">examples/accel_results.md</a> in Torch_Sim_Frontend</p>
+    <div class="diagram-grid cols-2">
+        <div class="diagram-panel g">
+            <h3>Identical answers</h3>
+            <p>On a program quantised to whole cycles, both engines give the same eight event times for every tile. Within a cycle the twin retires first, then starts, and repeats until nothing changes, which is what one SimPy instant does.</p>
+        </div>
+        <div class="diagram-panel y">
+            <h3>Different costs</h3>
+            <p>Event-driven work grows with state changes; cycle-based work with cycles, busy or idle. For GPT-2 that is 20,775 events against 155,520,753 evaluations. Cycle-based earns its cost when the question is inside the cycles: arbitration, pipeline hazards.</p>
+        </div>
+    </div>
+</section>
+
+<section class="slide" id="slide-11">
+    <div class="slide-number">11</div>
+    <h2>How gem5 and SST Are Structured</h2>
+    <p>Two production simulators, built on the same three ideas as this model: components, connections with flow control, and an event queue. Names below are as in recent releases of each; their documentation (<a href="https://www.gem5.org/documentation/">gem5</a>, <a href="https://sst-simulator.org/">SST</a>) is the reference.</p>
+    <div class="table-wrap"><table>
+        <thead><tr><th>Idea</th><th>gem5</th><th>SST</th><th>simfront.accel</th></tr></thead>
+        <tbody>
+            <tr><td>Unit of modelling</td><td><strong>SimObject</strong>: a C++ class with a Python declaration of its parameters</td><td><strong>Component</strong> (C++, registered with element-library macros), with pluggable <strong>SubComponents</strong></td><td>A SimPy process plus the resources it holds</td></tr>
+            <tr><td>Configuration</td><td>A Python script builds the object tree, then instantiates and simulates it</td><td>A Python script creates components, sets parameters and connects links</td><td><code>AccelConfig</code>, a frozen dataclass</td></tr>
+            <tr><td>Connections</td><td><strong>Ports</strong>: a request port bound to a response port in the Python config; packets carry requests</td><td><strong>Links</strong> between named ports, each with a latency; components exchange <strong>Events</strong> over them</td><td>Shared <code>Store</code> and <code>Container</code> objects</td></tr>
+            <tr><td>Flow control</td><td>Timing mode: a send that returns false is retried when the receiver signals it can accept (back-pressure)</td><td>Up to the components (credits, as in its network models)</td><td><code>Container.put</code> waits for space</td></tr>
+            <tr><td>Time</td><td>An <strong>event queue</strong> in ticks (1 ps by default); clocked objects convert cycles to ticks</td><td>A core time base; components register <strong>clock handlers</strong> and per-link event handlers</td><td>SimPy's heap of events, in seconds (or cycles, quantised)</td></tr>
+            <tr><td>Fidelity modes</td><td>Atomic, timing and functional accesses; CPU models from simple to out-of-order</td><td>Whatever each element implements, from analytic to cycle-level</td><td>One timing model; a cycle-stepped twin</td></tr>
+            <tr><td>Parallelism</td><td>One event queue per simulated system by default</td><td>Conservative parallel simulation over MPI ranks and threads; link latencies give the lookahead</td><td>None (sweeps run in parallel instead)</td></tr>
+        </tbody>
+    </table></div>
+    <p>The lesson for a model of this size: <strong>make the connection the unit of flow control</strong>, as both do. Here a <code>Container</code> is the port's ready signal; in gem5 it is a retry, in SST a credit. Parallel discrete-event simulation (<a href="https://brendanjameslynskey.github.io/InfSim_08_Accelerating_Simulators/#slide-12">InfSim 08</a>) needs the lookahead that SST's link latencies provide.</p>
+</section>
+
+<section class="slide" id="slide-12">
+    <div class="slide-number">12</div>
+    <h2>The Hot Path in C++ with pybind11</h2>
+    <p>The SimPy model spends its time on event bookkeeping: 20,775 events for GPT-2's 1051 tiles (slide 10), each a heap push and pop and a generator resumed (measure before porting: <a href="https://brendanjameslynskey.github.io/SimEng_11_Performance_Analysis/">SimEng 11</a>). When the two DMA engines cannot contend for a memory channel, the loop has nothing left to arbitrate, and every tile's times follow from earlier tiles': a <strong>recurrence</strong> with a min-heap of buffer frees. It is written in Python, then ported line for line to C++20 and exposed with <a href="https://pybind11.readthedocs.io/">pybind11</a>. All three agree <strong>bit for bit</strong> on every field of every tile, on real traces and on Hypothesis-generated programs.</p>
+    <div class="table-wrap"><table>
+<thead><tr><th>Program</th><th>Tiles</th><th>SimPy (s)</th><th>Python recurrence (s)</th><th>C++ call (s)</th><th>C++ kernel (s)</th><th>Identical</th></tr></thead>
+<tbody>
+<tr><td>tiny-cnn (edge-npu)</td><td>14</td><td>0.001</td><td>0.0000</td><td>0.0000</td><td>0.00000</td><td>yes</td></tr>
+<tr><td>gpt2 128 (edge-npu)</td><td>1,051</td><td>0.061</td><td>0.0019</td><td>0.0009</td><td>0.00013</td><td>yes</td></tr>
+<tr><td>llama3-8b 2048 (dc-npu)</td><td>17,991</td><td>0.996</td><td>0.0372</td><td>0.0194</td><td>0.00287</td><td>yes</td></tr>
+<tr><td>llama3-8b 512 (edge-npu)</td><td>87,075</td><td>3.728</td><td>0.1727</td><td>0.0991</td><td>0.01592</td><td>yes</td></tr>
+</tbody></table></div>
+    <p class="src">Source: <a href="https://github.com/BrendanJamesLynskey/Torch_Sim_Frontend/blob/main/examples/accel_results.md">examples/accel_results.md</a> in Torch_Sim_Frontend</p>
+    <div class="callout">
+        <div class="callout-label">Amdahl, measured</div>
+        <p>On the largest program the algorithm (no event loop) bought 22x; C++ bought 11x on the kernel but only 1.7x on the whole call, because converting Python lists dominates. Lowering, still Python, now takes 0.2562 s, longer than the simulation. The next port is the lowering, or a zero-copy array interface (<a href="https://brendanjameslynskey.github.io/SimEng_02_Rust_Python_PyO3/#slide-01">SimEng 02</a> asks the same question for Rust).</p>
+    </div>
+</section>
+
+<section class="slide" id="slide-13">
+    <div class="slide-number">13</div>
+    <h2>Modern C++ in the Port</h2>
+    <p>The port is small, and uses the features worth knowing (<a href="https://brendanjameslynskey.github.io/SimEng_03_SystemC_TLM_Models/#slide-02">SimEng 03</a> covers value types and RAII):</p>
+    <div class="code-block">
+        <div class="code-header">_fastpath.cpp: a template constrained by a concept <a class="src-link" href="https://github.com/BrendanJamesLynskey/Torch_Sim_Frontend/blob/main/src/simfront/accel/_fastpath.cpp">source</a></div>
+        <pre><code><span class="kw">template</span> &lt;<span class="kw">typename</span> <span class="type">K</span>&gt;
+concept <span class="type">Ordered</span> = <span class="fn">requires</span>(<span class="kw">const</span> <span class="type">K</span>&amp; a, <span class="kw">const</span> <span class="type">K</span>&amp; b) {
+    { a &lt; b } -&gt; std::convertible_to&lt;<span class="kw">bool</span>&gt;;
+};
+
+<span class="cm">// A binary min-heap ordered by key(item). std::priority_queue would do; writing it out keeps</span>
+<span class="cm">// the pop order identical to Python's heapq for equal keys (both break ties by a sequence number).</span>
+<span class="kw">template</span> &lt;<span class="kw">typename</span> <span class="type">T</span>, <span class="type">Ordered</span> <span class="type">K</span>, <span class="type">K</span> (*key)(<span class="kw">const</span> <span class="type">T</span>&amp;)&gt;
+<span class="kw">class</span> <span class="type">MinHeap</span> {</code></pre>
+    </div>
+    <div class="code-block">
+        <div class="code-header">_fastpath.cpp: unique_ptr, moves, the GIL <a class="src-link" href="https://github.com/BrendanJamesLynskey/Torch_Sim_Frontend/blob/main/src/simfront/accel/_fastpath.cpp">source</a></div>
+        <pre><code><span class="kw">auto</span> p = std::make_unique&lt;<span class="type">Pipeline</span>&gt;(std::<span class="fn">move</span>(op), std::<span class="fn">move</span>(first), std::<span class="fn">move</span>(last), std::<span class="fn">move</span>(stores),
+                                    std::<span class="fn">move</span>(alloc_in), std::<span class="fn">move</span>(alloc_out), std::<span class="fn">move</span>(load_dur),
+                                    std::<span class="fn">move</span>(comp_dur), std::<span class="fn">move</span>(store_dur), std::<span class="fn">move</span>(deps), n_ops,
+                                    capacity);
+py::gil_scoped_release release;
+<span class="kw">return</span> p-&gt;<span class="fn">run</span>();</code></pre>
+    </div>
+    <ul>
+        <li><strong>Templates and concepts.</strong> <code>MinHeap&lt;T, K, key&gt;</code> is a generic binary heap; the C++20 concept <code>Ordered</code> rejects a key type without <code>&lt;</code> at compile time, with a readable error.</li>
+        <li><strong>Move semantics.</strong> The constructor takes each column by value and <code>std::move</code>s it into the object; <code>run()</code> moves its result columns out. No million-element vector is copied.</li>
+        <li><strong>Smart pointers.</strong> <code>std::make_unique</code> builds the pipeline; Python owns bound objects through <code>std::unique_ptr</code>, pybind11's default holder, so memory is freed when the Python object goes.</li>
+        <li><strong><code>std::span</code></strong> views a dependency list without copying; <code>[[nodiscard]]</code> and <code>noexcept</code> document intent.</li>
+        <li><strong>The GIL</strong> is released while the kernel runs, so Python threads can run sweeps in parallel.</li>
+        <li><strong>Same operation order as Python</strong>, so the doubles are identical (<a href="https://brendanjameslynskey.github.io/SimEng_02_Rust_Python_PyO3/#slide-06">the parity checklist</a>).</li>
+    </ul>
+</section>
+
+<section class="slide" id="slide-14">
+    <div class="slide-number">14</div>
+    <h2>ONNX Runtime Execution Providers</h2>
+    <p>A hardware backend joins ONNX Runtime as an <strong>execution provider</strong> (EP). When a session is created, ONNX Runtime asks each EP in priority order which nodes it can run (<code>GetCapability</code>), fuses each EP's connected nodes into subgraphs, and gives everything unclaimed to the CPU EP (<a href="https://brendanjameslynskey.github.io/InfSim_09_Framework_Integration/#slide-07">InfSim 09</a>; <a href="https://onnxruntime.ai/docs/execution-providers/add-execution-provider.html">ORT: adding an EP</a>). A real EP is C++ against ONNX Runtime; <a href="https://github.com/BrendanJamesLynskey/Torch_Sim_Frontend/blob/main/src/simfront/accel/ep.py">ep.py</a> reproduces the partition so the simulator can cost it:</p>
+    <ul>
+        <li><code>ep.ort_providers</code> runs a real session with profiling on and reads which provider ran each node;</li>
+        <li><code>ep.claim</code> is a <code>GetCapability</code>: claim by operator type, group connected claimed nodes;</li>
+        <li><code>ep.simulate</code>: claimed operators on the accelerator model, the rest on a host roofline, a link transfer for every crossing.</li>
+    </ul>
+    <div class="table-wrap"><table>
+<thead><tr><th>Device supports</th><th>Nodes claimed</th><th>Subgraphs</th><th>Crossings</th><th>Device (µs)</th><th>Host (µs)</th><th>Link (µs)</th><th>Total (µs)</th></tr></thead>
+<tbody>
+<tr><td>Conv, Gemm</td><td>4/17</td><td>4</td><td>13</td><td>36.35</td><td>3.04</td><td>15.19</td><td>54.59</td></tr>
+<tr><td>+ Relu, MaxPool</td><td>10/17</td><td>5</td><td>12</td><td>69.17</td><td>1.16</td><td>15.60</td><td>85.93</td></tr>
+<tr><td>+ BatchNormalization, ReduceMean (everything)</td><td>17/17</td><td>1</td><td>0</td><td>99.96</td><td>0.00</td><td>0.00</td><td>99.96</td></tr>
+</tbody></table></div>
+    <p class="src">Source: <a href="https://github.com/BrendanJamesLynskey/Torch_Sim_Frontend/blob/main/examples/accel_results.md">examples/accel_results.md</a> in Torch_Sim_Frontend</p>
+    <p>With these illustrative numbers the host is better at memory-bound operators than the edge device, so claiming <em>fewer</em> nodes is faster. The partition has to be costed, not counted: the point of <a href="https://brendanjameslynskey.github.io/SimEng_10_PyTorch_ONNX_Frontends/#slide-12">operator coverage as a time metric</a>.</p>
+</section>
+
+<section class="slide" id="slide-15">
+    <div class="slide-number">15</div>
+    <h2>An FHE Workload: Polynomial Products via the NTT</h2>
+    <p>Lattice-based homomorphic encryption multiplies polynomials in Z<sub>q</sub>[X]/(X<sup>N</sup>+1), stored as one row of N residues per RNS prime ("limb"), through the NTT: c = INTT(NTT(a) &middot; NTT(b)) after a twist by a 2N-th root of unity (<a href="https://brendanjameslynskey.github.io/FHESim_01_FHE_for_Hardware_Engineers/#slide-03">FHESim 01</a>). <a href="https://github.com/BrendanJamesLynskey/Torch_Sim_Frontend/blob/main/src/simfront/accel/ntt.py">ntt.py</a> has the golden model, checked against schoolbook multiplication by Hypothesis, and a workload builder in the same trace format, so it runs through the same accelerator.</p>
+    <div class="code-block">
+        <div class="code-header">ntt.py: the negacyclic product, the golden model <a class="src-link" href="https://github.com/BrendanJamesLynskey/Torch_Sim_Frontend/blob/main/src/simfront/accel/ntt.py">source</a></div>
+        <pre><code><span class="kw">def</span> <span class="fn">polymul</span>(a: list[int], b: list[int], q: int) -&gt; list[int]:
+    <span class="str">""</span><span class="str">"a * b in Z_q[X]/(X^n + 1) through the NTT (negacyclic twist by psi)."</span><span class="str">""</span>
+    n = <span class="fn">len</span>(a)
+    p = <span class="fn">psi</span>(n, q)
+    w = p * p % q
+    tw = [<span class="fn">pow</span>(p, i, q) <span class="kw">for</span> i <span class="kw">in</span> <span class="fn">range</span>(n)]
+    fa = <span class="fn">ntt</span>([x * t % q <span class="kw">for</span> x, t <span class="kw">in</span> <span class="fn">zip</span>(a, tw, strict=<span class="kw">True</span>)], q, w)
+    fb = <span class="fn">ntt</span>([x * t % q <span class="kw">for</span> x, t <span class="kw">in</span> <span class="fn">zip</span>(b, tw, strict=<span class="kw">True</span>)], q, w)
+    c = <span class="fn">intt</span>([x * y % q <span class="kw">for</span> x, y <span class="kw">in</span> <span class="fn">zip</span>(fa, fb, strict=<span class="kw">True</span>)], q, w)
+    inv = <span class="fn">pow</span>(p, q - <span class="num">2</span>, q)
+    <span class="kw">return</span> [x * <span class="fn">pow</span>(inv, i, q) % q <span class="kw">for</span> i, x <span class="kw">in</span> <span class="fn">enumerate</span>(c)]</code></pre>
+    </div>
+    <p>One product at N = 2<sup>16</sup> with 24 limbs is 96 operators. An NTT is (N/2) log<sub>2</sub>N butterflies; at three operations each that is 3.0 operations per input byte. On <code>dc-npu</code> it takes 489.10 µs and is memory-bound; with a 16-lane vector unit, 2,789.18 µs and NTT-bound. The full FHE picture (key switching, bootstrapping, key traffic) is in <a href="https://brendanjameslynskey.github.io/FHESim_02_Anatomy_of_Bootstrapping/#slide-09">FHESim 02</a> and <a href="https://github.com/BrendanJamesLynskey/FHE_Accelerator_Sim">FHE_Accelerator_Sim</a>.</p>
+</section>
+
+<section class="slide" id="slide-16">
+    <div class="slide-number">16</div>
+    <h2>Computing in the Data Path (Speculative)</h2>
+    <p>FHE is bound by data movement (<a href="https://brendanjameslynskey.github.io/FHESim_02_Anatomy_of_Bootstrapping/#slide-09">FHESim 02</a>), so one family of ideas moves the computation to the data: into memory (FHEmem, <a href="https://arxiv.org/abs/2311.16293">arXiv:2311.16293</a>; APACHE, <a href="https://arxiv.org/abs/2404.15819">arXiv:2404.15819</a>), into the network (in-network aggregation for training, SwitchML, <a href="https://arxiv.org/abs/1903.06701">arXiv:1903.06701</a>), or onto light (<a href="https://brendanjameslynskey.github.io/FHESim_04_Optical_NTT_Engines/">FHESim 04</a>, <a href="https://brendanjameslynskey.github.io/FOptInf_03_Optical_Prefill_Pools/#slide-12">FOptInf 03</a>). The model adds a stage in the memory read path that performs the NTT as the data streams in (a pipelined NTT, like the delay-feedback designs in <a href="https://brendanjameslynskey.github.io/Cryptography/10-crypto-hardware-accelerator-design/">Cryptography 10</a>), with a budget in operations per byte.</p>
+    <div class="table-wrap"><table>
+<thead><tr><th>Preset</th><th>Vector lanes</th><th>NTT runs</th><th>Latency (µs)</th><th>Speed-up</th><th>Hot-spot</th></tr></thead>
+<tbody>
+<tr><td>edge-npu</td><td>64</td><td>on chip</td><td>6,856.50</td><td>1.00x</td><td>off-chip memory</td></tr>
+<tr><td>edge-npu</td><td>64</td><td>in transit, 0.5</td><td>21,208.89</td><td>0.32x</td><td>in-transit stage</td></tr>
+<tr><td>edge-npu</td><td>64</td><td>in transit, 1.6</td><td>9,043.77</td><td>0.76x</td><td>in-transit stage</td></tr>
+<tr><td>edge-npu</td><td>64</td><td>in transit, 3.0</td><td>6,463.29</td><td>1.06x</td><td>in-transit stage</td></tr>
+<tr><td>edge-npu</td><td>64</td><td>in transit, 6.0</td><td>6,463.29</td><td>1.06x</td><td>in-transit stage</td></tr>
+<tr><td>edge-npu</td><td>8</td><td>on chip</td><td>9,719.49</td><td>1.00x</td><td>vector unit</td></tr>
+<tr><td>edge-npu</td><td>8</td><td>in transit, 0.5</td><td>21,294.90</td><td>0.46x</td><td>in-transit stage</td></tr>
+<tr><td>edge-npu</td><td>8</td><td>in transit, 1.6</td><td>9,129.78</td><td>1.06x</td><td>in-transit stage</td></tr>
+<tr><td>edge-npu</td><td>8</td><td>in transit, 3.0</td><td>6,549.30</td><td>1.48x</td><td>in-transit stage</td></tr>
+<tr><td>edge-npu</td><td>8</td><td>in transit, 6.0</td><td>6,549.30</td><td>1.48x</td><td>in-transit stage</td></tr>
+<tr><td>dc-npu</td><td>512</td><td>on chip</td><td>489.10</td><td>1.00x</td><td>off-chip memory</td></tr>
+<tr><td>dc-npu</td><td>512</td><td>in transit, 0.5</td><td>1,407.21</td><td>0.35x</td><td>in-transit stage</td></tr>
+<tr><td>dc-npu</td><td>512</td><td>in transit, 1.6</td><td>628.65</td><td>0.78x</td><td>in-transit stage</td></tr>
+<tr><td>dc-npu</td><td>512</td><td>in transit, 3.0</td><td>463.50</td><td>1.06x</td><td>in-transit stage</td></tr>
+<tr><td>dc-npu</td><td>512</td><td>in transit, 6.0</td><td>463.50</td><td>1.06x</td><td>in-transit stage</td></tr>
+<tr><td>dc-npu</td><td>16</td><td>on chip</td><td>2,789.18</td><td>1.00x</td><td>vector unit</td></tr>
+<tr><td>dc-npu</td><td>16</td><td>in transit, 0.5</td><td>1,502.45</td><td>1.86x</td><td>in-transit stage</td></tr>
+<tr><td>dc-npu</td><td>16</td><td>in transit, 1.6</td><td>723.88</td><td>3.85x</td><td>in-transit stage</td></tr>
+<tr><td>dc-npu</td><td>16</td><td>in transit, 3.0</td><td>558.73</td><td>4.99x</td><td>in-transit stage</td></tr>
+<tr><td>dc-npu</td><td>16</td><td>in transit, 6.0</td><td>558.73</td><td>4.99x</td><td>in-transit stage</td></tr>
+</tbody></table></div>
+    <p class="src">Source: <a href="https://github.com/BrendanJamesLynskey/Torch_Sim_Frontend/blob/main/examples/accel_results.md">examples/accel_results.md</a> in Torch_Sim_Frontend</p>
+    <div class="callout">
+        <div class="callout-label">Speculation, labelled</div>
+        <p>The stage and its budgets are this deck's illustration, attributed to no one. What the model says: when the on-chip NTT is fast, the stage gains little and a stage that cannot keep up with the stream throttles memory; when the NTT engine is the bottleneck, it wins up to 4.99x; above the NTT's own 3.0 operations per byte, more budget buys nothing. Precision, conversion energy and area are not modelled here (FHESim 04 prices them for optics).</p>
+    </div>
+</section>
+
+<section class="slide" id="slide-17">
+    <div class="slide-number">17</div>
+    <h2>Specification, Tests and CI</h2>
+    <p>The model is held to the same discipline as the front end (<a href="https://brendanjameslynskey.github.io/SimEng_09_Specs_Requirements_Test_Plans/">SimEng 09</a>): requirements SF-18 to SF-28 in EARS patterns, each traced to the tests that verify it by a matrix generated from the test run.</p>
+    <div class="table-wrap"><table>
+        <thead><tr><th>Requirement</th><th>Oracle in the tests</th></tr></thead>
+        <tbody>
+            <tr><td>SF-18 tiles fit; a GEMM's tiles do exactly its MACs</td><td>The cost rules' FLOPs; hand-worked im2col shapes</td></tr>
+            <tr><td>SF-19 back-pressure; occupancy &le; capacity</td><td>Occupancy rebuilt from the timings, every run</td></tr>
+            <tr><td>SF-20 loads wait for producers to be stored</td><td>Event order, every operator</td></tr>
+            <tr><td>SF-21 metrics, stalls sum to latency, plots</td><td>The sum, to 1 part in 10<sup>12</sup>; a PNG and a Chrome trace written</td></tr>
+            <tr><td>SF-22, SF-23 fast path bit-identical; refuses contention</td><td>The SimPy model, exactly, plus Hypothesis-generated programs</td></tr>
+            <tr><td>SF-24 cycle-stepped twin identical</td><td>The SimPy model, exactly</td></tr>
+            <tr><td>SF-25, SF-26 NTT product; in-transit budget</td><td>Schoolbook multiplication; the budget as a bound</td></tr>
+            <tr><td>SF-27, SF-28 Little's law; EP partition</td><td>L = &lambda;W exactly; ONNX Runtime's own profile</td></tr>
+        </tbody>
+    </table></div>
+    <p>GitHub Actions runs the suite on Python 3.10 and 3.12 with <code>SIMFRONT_REQUIRE_CPP=1</code>, which turns a C++ module that failed to build into a test failure instead of a silent fallback to Python, then smoke-tests the CLI on the CNN, the NTT workload and the cycle-stepped twin.</p>
+</section>
+
+<section class="slide" id="slide-18">
+    <div class="slide-number">18</div>
+    <h2>Reading List</h2>
+    <div class="diagram-grid cols-2">
+        <div>
+            <ul>
+                <li><a href="https://simpy.readthedocs.io/">SimPy documentation</a>: processes and shared resources (<code>Resource</code>, <code>Container</code>, <code>Store</code>).</li>
+                <li><a href="https://www.gem5.org/documentation/">gem5 documentation</a> (the learning gem5 tutorial: SimObjects, ports, events) and <a href="https://sst-simulator.org/">SST</a> (components, links, the element libraries).</li>
+                <li><a href="https://docs.pytorch.org/docs/stable/export.html">torch.export</a>, <a href="https://onnx.ai/onnx/api/shape_inference.html">ONNX shape inference</a>, and <a href="https://onnxruntime.ai/docs/execution-providers/">ONNX Runtime execution providers</a>.</li>
+                <li><a href="https://pybind11.readthedocs.io/">pybind11</a>: classes, holders, the GIL.</li>
+            </ul>
+        </div>
+        <div>
+            <ul>
+                <li>J. L. Hennessy, D. A. Patterson, <em>Computer Architecture: A Quantitative Approach</em>, 6th ed. (2017): chapter 2 and appendix B on the memory hierarchy, chapter 7 on domain-specific architectures.</li>
+                <li>H. T. Kung, "Why Systolic Architectures?", IEEE Computer 15(1), 1982.</li>
+                <li><a href="https://heir.dev">HEIR</a>, the MLIR compiler for FHE (<a href="https://brendanjameslynskey.github.io/InfSim_09_Framework_Integration/#slide-10">InfSim 09</a>), and the FHE background in <a href="https://brendanjameslynskey.github.io/Cryptography/08-fully-homomorphic-encryption/">Cryptography 08</a> (CKKS, TFHE, bootstrapping).</li>
+                <li>More: <a href="https://brendanjameslynskey.github.io/InfSim_10_Further_Learning/">InfSim 10, Further Learning</a>.</li>
+            </ul>
+        </div>
+    </div>
+</section>
+
+<section class="slide" id="slide-19">
+    <div class="slide-number">19</div>
+    <h2>What to Take Away</h2>
+    <ul>
+        <li>Four SimPy primitives model a data-movement accelerator: <code>Resource</code> for channels and links, <code>Container</code> for buffer bytes (back-pressure for free), <code>Store</code> for FIFOs, events for dependencies.</li>
+        <li>Lower once, run many engines: the SimPy model, a bit-identical fast path (Python and C++), and a cycle-stepped twin that agrees cycle for cycle at a hundredfold cost.</li>
+        <li>Find the stalls by attributing every gap, not by reading utilisation: a busy array can be starved, and a bigger buffer can be slower.</li>
+        <li>gem5 and SST are built on the same three ideas: components, connections that carry flow control, and an event queue.</li>
+        <li>Port after profiling, and measure the whole call: the algorithm bought more than the language, and conversion and lowering decide the end-to-end gain.</li>
+        <li>An execution-provider partition, an in-transit stage or a new engine is a design decision only once it is costed in time.</li>
+    </ul>
+</section>
+
+<!-- ════════════════════════════════════ Footer ════════════════════════════════════ -->
+<footer class="footer">
+    <p>Part of the <a href="https://github.com/BrendanJamesLynskey/SimEng_Hub_Toolkit">Simulation Engineering Toolkit series</a> &middot; <a href="https://brendanjameslynskey.github.io/SimEng_Hub_Toolkit/#glossary">glossary: every concept and where it is explained</a> &middot; code: <a href="https://github.com/BrendanJamesLynskey/Torch_Sim_Frontend">Torch_Sim_Frontend</a></p>
+    <p style="margin-top: 0.5rem; font-size: 0.8rem;"><a href="https://brendanjameslynskey.github.io/SimEng_13_PPA_Tradeoffs/">&larr; 13 Power, Performance and Area: the Architect's Trade-offs</a></p>
+    <p style="margin-top: 0.5rem; font-size: 0.8rem;">Interview questions: <a href="https://github.com/BrendanJamesLynskey/Interview_Simulation">Interview_Simulation</a> &middot; <a href="https://github.com/BrendanJamesLynskey/Interview_AI_Accelerator_Architecture">Interview_AI_Accelerator_Architecture</a> &middot; <a href="https://github.com/BrendanJamesLynskey/Interview_CPP">Interview_CPP</a> &middot; sister series: <a href="https://github.com/BrendanJamesLynskey/LLM_Hub_Inference_Simulators">LLM Inference Simulators</a> &middot; <a href="https://github.com/BrendanJamesLynskey/FHE_Hub_Accelerator_Simulators">FHE Accelerator Simulators</a></p>
+</footer>
+
+<script>
+    // Smooth scroll for TOC links
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener('click', function (e) {
+            e.preventDefault();
+            const target = document.querySelector(this.getAttribute('href'));
+            if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+    });
+
+    // Subtle fade-in on scroll
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                entry.target.style.opacity = '1';
+                entry.target.style.transform = 'translateY(0)';
+            }
+        });
+    }, { threshold: 0.1 });
+    document.querySelectorAll('.slide').forEach(slide => {
+        slide.style.opacity = '0';
+        slide.style.transform = 'translateY(30px)';
+        slide.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
+        observer.observe(slide);
+    });
+</script>
+
+</body>
+</html>
